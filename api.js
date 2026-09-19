@@ -102,7 +102,7 @@ function roundToDigits(value, digits) {
 // 直接送信される（このアプリ独自のサーバーは存在しないため、他へは送信されない）。
 
 const GEMINI_API_KEY_STORAGE = 'dietapp_gemini_api_key';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_TIMEOUT_MS = 30000;
 
