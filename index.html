@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ダイエット管理アプリ</title>
+
+<!-- PWA対応: ホーム画面への追加・スタンドアロン起動・オフライン利用のための設定 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f9e6e">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ダイエット管理">
+
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============== 初回プロフィール設定画面 ============== -->
+  <div id="screen-onboarding" class="onboarding-screen">
+    <div class="onboarding-inner">
+      <h1 class="onboarding-title">ダイエット管理へようこそ</h1>
+      <p class="onboarding-sub">まずはあなたの情報を教えてください</p>
+      <form id="onboardingForm" class="form">
+        <label class="form-label">年齢</label>
+        <input type="number" name="age" class="text-input" min="10" max="100" required>
+
+        <label class="form-label">性別</label>
+        <select name="gender" class="text-input" required>
+          <option value="male">男性</option>
+          <option value="female">女性</option>
+          <option value="other">その他</option>
+        </select>
+
+        <label class="form-label">身長 (cm)</label>
+        <input type="number" name="height" class="text-input" min="100" max="250" step="0.1" required>
+
+        <label class="form-label">現在の体重 (kg)</label>
+        <input type="number" name="currentWeight" class="text-input" min="20" max="300" step="0.1" required>
+
+        <label class="form-label">目標体重 (kg)</label>
+        <input type="number" name="targetWeight" class="text-input" min="20" max="300" step="0.1" required>
+
+        <label class="form-label">目標達成期間 (週)</label>
+        <input type="number" name="periodWeeks" class="text-input" min="1" max="104" required>
+
+        <label class="form-label">活動量</label>
+        <select name="activity" class="text-input" required>
+          <option value="sedentary">ほぼ運動しない</option>
+          <option value="light">軽い運動</option>
+          <option value="moderate" selected>普通</option>
+          <option value="active">激しい運動</option>
+          <option value="very_active">非常に激しい運動</option>
+        </select>
+
+        <button type="submit" class="btn-primary full-width">始める</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============== メインアプリ ============== -->
+  <div id="appShell" class="app-shell hidden">
+
+    <header class="app-header">
+      <h1 class="app-title">ダイエット管理</h1>
+      <button id="settingsBtn" class="icon-btn" aria-label="設定">⚙️</button>
+    </header>
+
+    <main id="main-content">
+
+      <!-- ---- ホーム ---- -->
+      <section id="screen-home" class="screen active">
+        <div class="date-bar">
+          <button id="prevDayBtn" class="date-nav-btn" aria-label="前日">‹</button>
+          <span id="currentDateLabel" class="date-label"></span>
+          <button id="nextDayBtn" class="date-nav-btn" aria-label="翌日">›</button>
+        </div>
+
+        <div class="card weight-progress-card">
+          <div class="card-title">体重</div>
+          <div class="weight-flow">
+            <div class="flow-item"><span class="flow-label">開始</span><span class="flow-value" id="homeStartWeight">--</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-item current"><span class="flow-label">現在</span><span class="flow-value" id="homeCurrentWeight">--</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-item"><span class="flow-label">目標</span><span class="flow-value" id="homeTargetWeight">--</span></div>
+          </div>
+          <div class="remain-to-goal">目標まであと <strong id="homeRemainWeight">--</strong> kg</div>
+        </div>
+
+        <div class="card calorie-card">
+          <div class="card-title">摂取カロリー</div>
+          <div class="big-number"><span id="homeCalorieCurrent">0</span> / <span id="homeCalorieTarget">0</span> <span class="unit">kcal</span></div>
+          <div class="progress-bar"><div class="progress-fill" id="homeCalorieBar"></div></div>
+          <div class="remain-line">残り <strong id="homeCalorieRemain">0</strong> kcal</div>
+        </div>
+
+        <div class="card pfc-card">
+          <div class="card-title">PFCバランス</div>
+          <div class="pfc-row">
+            <div class="pfc-item">
+              <div class="pfc-label protein">P たんぱく質</div>
+              <div class="pfc-value"><span id="homeProteinCurrent">0</span> / <span id="homeProteinTarget">0</span> g</div>
+              <div class="progress-bar small"><div class="progress-fill protein" id="homeProteinBar"></div></div>
+            </div>
+            <div class="pfc-item">
+              <div class="pfc-label fat">F 脂質</div>
+              <div class="pfc-value"><span id="homeFatCurrent">0</span> / <span id="homeFatTarget">0</span> g</div>
+              <div class="progress-bar small"><div class="progress-fill fat" id="homeFatBar"></div></div>
+            </div>
+            <div class="pfc-item">
+              <div class="pfc-label carbs">C 炭水化物</div>
+              <div class="pfc-value"><span id="homeCarbsCurrent">0</span> / <span id="homeCarbsTarget">0</span> g</div>
+              <div class="progress-bar small"><div class="progress-fill carbs" id="homeCarbsBar"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card remain-card">
+          <div class="card-title">今日あと食べられる栄養</div>
+          <div class="remain-grid">
+            <div class="remain-grid-item">残り<br><strong id="homeRemainKcal">0</strong>kcal</div>
+            <div class="remain-grid-item">P<br><strong id="homeRemainP">0</strong>g</div>
+            <div class="remain-grid-item">F<br><strong id="homeRemainF">0</strong>g</div>
+            <div class="remain-grid-item">C<br><strong id="homeRemainC">0</strong>g</div>
+          </div>
+          <button class="btn-primary full-width" id="homeSuggestBtn">おすすめレシピを見る</button>
+        </div>
+
+        <div class="card advice-card">
+          <div class="card-title">今日のアドバイス</div>
+          <ul id="homeAdviceList" class="advice-list"></ul>
+        </div>
+
+        <div class="card quick-actions">
+          <button class="btn-secondary" data-action="add-meal">＋食事</button>
+          <button class="btn-secondary" data-action="add-weight">＋体重</button>
+          <button class="btn-secondary" data-action="add-exercise">＋運動</button>
+        </div>
+      </section>
+
+      <!-- ---- 食事 ---- -->
+      <section id="screen-meals" class="screen">
+        <div class="date-bar">
+          <button id="mealsPrevDayBtn" class="date-nav-btn" aria-label="前日">‹</button>
+          <span id="mealsDateLabel" class="date-label"></span>
+          <button id="mealsNextDayBtn" class="date-nav-btn" aria-label="翌日">›</button>
+        </div>
+
+        <div class="card meal-summary-card">
+          <div class="card-title">今日の合計</div>
+          <div class="big-number" id="mealsSummaryKcal">0 / 0 kcal</div>
+          <div class="sub-line" id="mealsSummaryPfc">P 0g　F 0g　C 0g</div>
+        </div>
+
+        <div class="meal-block" data-meal="breakfast">
+          <div class="meal-block-header">
+            <span class="meal-block-title">🌅 朝食</span>
+            <span class="meal-block-kcal">0kcal</span>
+            <button class="add-food-btn" data-meal="breakfast">＋追加</button>
+          </div>
+          <ul class="food-list" id="foodList-breakfast"></ul>
+        </div>
+
+        <div class="meal-block" data-meal="lunch">
+          <div class="meal-block-header">
+            <span class="meal-block-title">☀️ 昼食</span>
+            <span class="meal-block-kcal">0kcal</span>
+            <button class="add-food-btn" data-meal="lunch">＋追加</button>
+          </div>
+          <ul class="food-list" id="foodList-lunch"></ul>
+        </div>
+
+        <div class="meal-block" data-meal="dinner">
+          <div class="meal-block-header">
+            <span class="meal-block-title">🌙 夕食</span>
+            <span class="meal-block-kcal">0kcal</span>
+            <button class="add-food-btn" data-meal="dinner">＋追加</button>
+          </div>
+          <ul class="food-list" id="foodList-dinner"></ul>
+        </div>
+
+        <div class="meal-block" data-meal="snack">
+          <div class="meal-block-header">
+            <span class="meal-block-title">🍎 間食</span>
+            <span class="meal-block-kcal">0kcal</span>
+            <button class="add-food-btn" data-meal="snack">＋追加</button>
+          </div>
+          <ul class="food-list" id="foodList-snack"></ul>
+        </div>
+      </section>
+
+      <!-- ---- 体重 ---- -->
+      <section id="screen-weight" class="screen">
+        <div class="card">
+          <div class="card-title">体重の推移</div>
+          <div class="weight-flow">
+            <div class="flow-item"><span class="flow-label">開始</span><span class="flow-value" id="weightStartValue">--</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-item current"><span class="flow-label">現在</span><span class="flow-value" id="weightCurrentValue">--</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-item"><span class="flow-label">目標</span><span class="flow-value" id="weightTargetValue">--</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="chart-controls">
+            <button class="weight-range-btn active" data-range="7">7日間</button>
+            <button class="weight-range-btn" data-range="30">30日間</button>
+            <button class="weight-range-btn" data-range="all">全期間</button>
+          </div>
+          <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
+        </div>
+
+        <button class="btn-primary full-width" id="addWeightBtn">＋体重を記録</button>
+
+        <div class="card">
+          <div class="card-title">記録履歴</div>
+          <ul id="weightHistoryList" class="history-list"></ul>
+        </div>
+      </section>
+
+      <!-- ---- 運動 ---- -->
+      <section id="screen-exercise" class="screen">
+        <div class="card">
+          <div class="card-title">今日の消費カロリー</div>
+          <div class="big-number"><span id="exerciseTodayTotal">0</span> <span class="unit">kcal</span></div>
+        </div>
+
+        <button class="btn-primary full-width" id="addExerciseBtn">＋運動を記録</button>
+
+        <div class="card">
+          <div class="card-title">運動履歴</div>
+          <ul id="exerciseHistoryList" class="history-list"></ul>
+        </div>
+      </section>
+
+      <!-- ---- レシピ ---- -->
+      <section id="screen-recipes" class="screen">
+        <div class="card remain-summary-mini">
+          <div class="card-title">今日の残り栄養</div>
+          <div class="remain-mini-grid">
+            <span><strong id="recipeRemainKcal">0</strong>kcal</span>
+            <span>P<strong id="recipeRemainP">0</strong>g</span>
+            <span>F<strong id="recipeRemainF">0</strong>g</span>
+            <span>C<strong id="recipeRemainC">0</strong>g</span>
+          </div>
+        </div>
+
+        <div class="recipe-controls">
+          <select id="recipeSortSelect" class="text-input">
+            <option value="match">おすすめ順</option>
+            <option value="kcal-asc">カロリーが低い順</option>
+            <option value="protein-desc">タンパク質が多い順</option>
+            <option value="stock">手持ち食材が多く使える順</option>
+          </select>
+          <button id="manageIngredientsBtn" class="btn-secondary">🧺 手持ち食材</button>
+        </div>
+
+        <div id="recipeList" class="recipe-list"></div>
+      </section>
+
+      <!-- ---- 分析 ---- -->
+      <section id="screen-analysis" class="screen">
+        <div class="chart-controls">
+          <button class="analysis-range-btn active" data-analysis-range="7">7日</button>
+          <button class="analysis-range-btn" data-analysis-range="30">30日</button>
+          <button class="analysis-range-btn" data-analysis-range="all">全期間</button>
+        </div>
+        <div class="card"><div class="chart-wrap"><canvas id="analysisWeightChart"></canvas></div></div>
+        <div class="card"><div class="chart-wrap"><canvas id="analysisCalorieChart"></canvas></div></div>
+        <div class="card"><div class="chart-wrap"><canvas id="analysisPfcChart"></canvas></div></div>
+        <div class="card" id="analysisSummary"></div>
+      </section>
+
+      <!-- ---- 設定 ---- -->
+      <section id="screen-settings" class="screen">
+        <button id="backToHomeFromSettings" class="link-btn">← ホームに戻る</button>
+
+        <form id="settingsForm" class="form card">
+          <div class="card-title">プロフィール設定</div>
+
+          <label class="form-label">年齢</label>
+          <input type="number" id="settingsAge" class="text-input" min="10" max="100" required>
+
+          <label class="form-label">性別</label>
+          <select id="settingsGender" class="text-input">
+            <option value="male">男性</option>
+            <option value="female">女性</option>
+            <option value="other">その他</option>
+          </select>
+
+          <label class="form-label">身長 (cm)</label>
+          <input type="number" id="settingsHeight" class="text-input" min="100" max="250" step="0.1" required>
+
+          <label class="form-label">目標体重 (kg)</label>
+          <input type="number" id="settingsTargetWeight" class="text-input" min="20" max="300" step="0.1" required>
+
+          <label class="form-label">目標達成期間 (週)</label>
+          <input type="number" id="settingsPeriod" class="text-input" min="1" max="104" required>
+
+          <label class="form-label">活動量</label>
+          <select id="settingsActivity" class="text-input">
+            <option value="sedentary">ほぼ運動しない</option>
+            <option value="light">軽い運動</option>
+            <option value="moderate">普通</option>
+            <option value="active">激しい運動</option>
+            <option value="very_active">非常に激しい運動</option>
+          </select>
+
+          <div class="card-title" style="margin-top:18px;">PFCバランス設定 (%)</div>
+          <label class="form-label">たんぱく質(P)</label>
+          <input type="number" id="settingsProteinRatio" class="text-input" min="0" max="100">
+          <label class="form-label">脂質(F)</label>
+          <input type="number" id="settingsFatRatio" class="text-input" min="0" max="100">
+          <label class="form-label">炭水化物(C)</label>
+          <input type="number" id="settingsCarbsRatio" class="text-input" min="0" max="100">
+          <div id="pfcRatioSumLabel" class="sub-line"></div>
+
+          <div id="settingsCalcInfo" class="calc-info"></div>
+
+          <button type="submit" class="btn-primary full-width">設定を保存</button>
+        </form>
+
+        <div class="card">
+          <div class="card-title">AI画像認識設定 (写真からカロリー推定)</div>
+          <p class="about-text">
+            食事の写真からカロリー・PFCを推定する機能には、Google Gemini APIキーが必要です。<br>
+            Google AI Studio (aistudio.google.com/apikey) で無料のAPIキーを発行し、下記に貼り付けてください。<br>
+            入力したキーはこの端末のブラウザ内にのみ保存され、写真の解析時にGoogleのAPIへ直接送信されます（このアプリ独自のサーバーはありません）。
+          </p>
+          <label class="form-label">Gemini APIキー</label>
+          <input type="password" id="geminiApiKeyInput" class="text-input" placeholder="AIzaSy...">
+          <button id="saveGeminiKeyBtn" class="btn-secondary full-width">APIキーを保存</button>
+          <button id="clearGeminiKeyBtn" class="btn-danger full-width">APIキーを削除</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">データ管理</div>
+          <button id="exportBtn" class="btn-secondary full-width">データをエクスポート (JSON)</button>
+          <button id="importBtn" class="btn-secondary full-width">データをインポート (JSON)</button>
+          <input type="file" id="importFile" accept="application/json" class="hidden">
+          <button id="deleteAllBtn" class="btn-danger full-width">全データ削除</button>
+        </div>
+
+        <div class="card about-card">
+          <div class="card-title">このアプリについて</div>
+          <p class="about-text">データはすべてこの端末のブラウザ内(localStorage)に保存されます。他のサーバーに送信されることはありません。食品検索でOpen Food Facts APIを利用する場合は検索キーワードが、写真からのカロリー推定でGoogle Gemini APIを利用する場合は写真データが、それぞれの外部サービスに直接送信されます。</p>
+        </div>
+      </section>
+
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-screen="home" class="active"><span class="nav-icon">🏠</span><span class="nav-label">ホーム</span></button>
+      <button data-screen="meals"><span class="nav-icon">🍽️</span><span class="nav-label">食事</span></button>
+      <button data-screen="weight"><span class="nav-icon">⚖️</span><span class="nav-label">体重</span></button>
+      <button data-screen="exercise"><span class="nav-icon">🏃</span><span class="nav-label">運動</span></button>
+      <button data-screen="recipes"><span class="nav-icon">📖</span><span class="nav-label">レシピ</span></button>
+      <button data-screen="analysis"><span class="nav-icon">📊</span><span class="nav-label">分析</span></button>
+    </nav>
+
+  </div>
+
+  <!-- ============== 共通モーダル ============== -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <button id="modalCloseBtn" class="modal-close" aria-label="閉じる">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="loadingOverlay" class="loading-overlay hidden"><div class="spinner"></div></div>
+
+</div>
+
+<script src="data.js"></script>
+<script src="api.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
